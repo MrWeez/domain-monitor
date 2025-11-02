@@ -135,24 +135,45 @@ func (w *WhoisCache) IsExpired() bool {
 }
 
 func (w *WhoisCache) Refresh() {
-	// Perform the whois query
+	// Try WHOIS first (default method)
 	whoisRaw, err := whois.Whois(w.FQDN)
 	if err != nil {
-		log.Printf("Error querying whois for %s: %s", w.FQDN, err)
+		log.Printf("⚠️ WHOIS query failed for %s: %s, trying RDAP fallback...", w.FQDN, err)
+		// Fallback to RDAP if WHOIS fails
+		whoisInfo, rdapErr := QueryRDAP(w.FQDN)
+		if rdapErr != nil {
+			log.Printf("❌ RDAP query also failed for %s: %s", w.FQDN, rdapErr)
+			return
+		}
+		// RDAP succeeded, update the object
+		w.WhoisInfo = whoisInfo
+		w.LastUpdated = time.Now()
+		log.Printf("📄 Refreshed domain info for %s via RDAP (WHOIS fallback)", w.FQDN)
 		return
 	}
 
 	// Parse the whois response
 	whoisInfo, err := whoisparser.Parse(whoisRaw)
 	if err != nil {
-		log.Printf("Error parsing whois for %s: %s", w.FQDN, err)
-		if err == whoisparser.ErrNotFoundDomain {
-			w.NxDomain = true
+		log.Printf("⚠️ Error parsing whois for %s: %s, trying RDAP fallback...", w.FQDN, err)
+		// If parsing failed but we got a response, it might be empty/invalid
+		// Try RDAP as fallback
+		whoisInfo, rdapErr := QueryRDAP(w.FQDN)
+		if rdapErr != nil {
+			log.Printf("❌ RDAP query also failed for %s: %s", w.FQDN, rdapErr)
+			if err == whoisparser.ErrNotFoundDomain {
+				w.NxDomain = true
+			}
+			return
 		}
+		// RDAP succeeded, update the object
+		w.WhoisInfo = whoisInfo
+		w.LastUpdated = time.Now()
+		log.Printf("📄 Refreshed domain info for %s via RDAP (WHOIS parse fallback)", w.FQDN)
 		return
 	}
 
-	// Update the object
+	// WHOIS succeeded, update the object
 	w.WhoisInfo = whoisInfo
 	w.LastUpdated = time.Now()
 
