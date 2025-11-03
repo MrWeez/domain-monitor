@@ -157,8 +157,15 @@ templ SmtpTab(conf configuration.SMTPConfiguration) {
     <div>
         <h3 class="text-lg text-accent">SMTP Settings</h3>
         <p class="p-2">To receive email alerts on whois content changes, these settings need to be correct.</p>
-        <div class='my-2 flex flex-row gap-2'>
-            <button class="btn btn-sm btn-info btn-outline" hx-post="/mailer/test" hx-trigger="click throttle:10ms">Send Test Email</button>
+        <div class='my-2 flex flex-row gap-2 items-center'>
+            <button class="btn btn-sm btn-info btn-outline" 
+                    hx-post="/mailer/test" 
+                    hx-trigger="click throttle:10ms"
+                    hx-target="#smtpTestResult"
+                    hx-swap="innerHTML">
+                Send Test Email
+                <span class="htmx-indicator loading loading-spinner loading-xs"></span>
+            </button>
             <div id="smtpTestResult"></div>
         </div>
         <div class="flex flex-col gap-3 p-2 w-full max-w-xl">
@@ -190,13 +197,20 @@ templ SmtpTab(conf configuration.SMTPConfiguration) {
                 <span class="label-text-alt">The SMTP port to connect to</span>
             </div>
         </label>
-        <div class="form-control max-w-md">
-          <label class="label cursor-pointer">
-            <span class="label-text">Force Secure</span>
-            <input type="checkbox" class="toggle toggle-success" checked?={conf.Secure}   name="value"
-            hx-post="/api/config/smtp/secure" hx-trigger="click throttle:10ms" hx-inclue="this"/>
-          </label>
-        </div>
+        <label class="form-control w-full max-w-lg">
+            <div class="label">
+                <span class="label-text">Encryption Type</span>
+            </div>
+            <select class="select select-bordered w-full max-w-lg" name="value"
+            hx-post="/api/config/smtp/encryptionType" hx-trigger="change throttle:10ms" hx-include="this" hx-swap="none">
+                <option value="none" selected?={conf.EncryptionType == "none" || (conf.EncryptionType == "" && !conf.Secure && conf.Port == 25)}>None (port 25, no encryption)</option>
+                <option value="ssl" selected?={conf.EncryptionType == "ssl" || (conf.EncryptionType == "" && conf.Secure && conf.Port == 465)}>SSL (port 465)</option>
+                <option value="starttls" selected?={conf.EncryptionType == "starttls" || conf.EncryptionType == "tls" || conf.EncryptionType == "starttls-mandatory" || conf.EncryptionType == "starttls-opportunistic" || (conf.EncryptionType == "" && (conf.Secure && conf.Port != 465 || (!conf.Secure && conf.Port != 25)))}>STARTTLS (port 587)</option>
+            </select>
+            <div class="label">
+                <span class="label-text-alt">Choose encryption method based on your SMTP server port</span>
+            </div>
+        </label>
         <label class="form-control w-full max-w-lg">
             <div class="label">
                 <span class="label-text">SMTP Username</span>

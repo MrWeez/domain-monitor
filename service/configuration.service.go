@@ -131,6 +131,24 @@ func (s *ConfigurationService) GetConfigurationValue(section string, key string)
 			return s.GetSMTPConfiguration().Host, nil
 		case "port":
 			return s.GetSMTPConfiguration().Port, nil
+		case "encryptionType":
+			encType := s.GetSMTPConfiguration().EncryptionType
+			if encType == "" {
+				// Return legacy Secure-based value
+				port := s.GetSMTPConfiguration().Port
+				if port == 25 {
+					return "none", nil
+				} else if port == 465 {
+					return "ssl", nil
+				} else {
+					return "starttls", nil
+				}
+			}
+			// Normalize old values
+			if encType == "tls" || encType == "starttls-mandatory" || encType == "starttls-opportunistic" {
+				return "starttls", nil
+			}
+			return encType, nil
 		case "secure":
 			return s.GetSMTPConfiguration().Secure, nil
 		case "authUser":
@@ -239,6 +257,8 @@ func (s *ConfigurationService) SetConfigurationValue(section string, key string,
 			s.store.Config.SMTP.Port = intVal
 		case "secure":
 			s.store.Config.SMTP.Secure = boolVal
+		case "encryptionType":
+			s.store.Config.SMTP.EncryptionType = value.(string)
 		case "authUser":
 			s.store.Config.SMTP.AuthUser = value.(string)
 		case "authPass":

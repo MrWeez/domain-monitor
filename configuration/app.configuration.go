@@ -41,8 +41,10 @@ type SMTPConfiguration struct {
 	Host string `yaml:"host" json:"host"`
 	// SMTP port
 	Port int `yaml:"port" json:"port"`
-	// Use secure connection (TLS)
+	// Use secure connection (TLS) - deprecated, use EncryptionType instead
 	Secure bool `yaml:"secure" json:"secure"`
+	// Encryption type: "none", "ssl", "starttls-mandatory", "starttls-opportunistic"
+	EncryptionType string `yaml:"encryptionType" json:"encryptionType"`
 	// SMTP user name
 	AuthUser string `yaml:"authUser" json:"authUser"`
 	// SMTP user password
