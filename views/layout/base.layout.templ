@@ -4,7 +4,7 @@ import "github.com/nwesterhausen/domain-monitor/views/modal"
 
 templ Base(includeConfig bool) {
 <!DOCTYPE html>
-<html lang="en" data-theme="fantasy">
+<html lang="en" id="html-root">
 <head>
      <meta charset="UTF-8" />
 
@@ -19,6 +19,14 @@ templ Base(includeConfig bool) {
     <title>Domain Monitor</title>
     <script src="/js/htmx.min.js"></script>
     <script src="/js/_hyperscript.min.js"></script>
+    <script>
+        // Theme management
+        (function() {
+            const html = document.documentElement;
+            const theme = localStorage.getItem('theme') || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+            html.setAttribute('data-theme', theme);
+        })();
+    </script>
 </head>
 <body>
 <div class="container-fluid">

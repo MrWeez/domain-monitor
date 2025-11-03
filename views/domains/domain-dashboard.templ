@@ -10,7 +10,7 @@ import (
 )
 
 templ DomainCard(domain configuration.Domain) {
-    <div class="card w-72 bg-base-100 text-light shadow-xl">
+    <div class="card w-72 bg-base-100 shadow-xl hover:shadow-2xl transition-shadow">
       <div class="card-body">
         <h2 class="card-title">{ domain.Name }</h2>
         <pre>{ domain.FQDN }</pre>
@@ -26,11 +26,11 @@ templ DomainCard(domain configuration.Domain) {
 }
 
 templ DomainCards(domains []configuration.Domain) {
-    <div class="container grid lg:grid-cols-4 md:grid-cols-3 sm:grid-cols-2 gap-4 p-2">
+    <div class="grid lg:grid-cols-4 md:grid-cols-3 sm:grid-cols-2 gap-4 p-2">
         for _,domain := range domains {
             @DomainCard(domain)
         }
-        </div>
+    </div>
 }
 
 templ WhoisError(err error) {
@@ -40,11 +40,19 @@ templ WhoisError(err error) {
 templ WhoisDetail(whois configuration.WhoisCache) {
     <div class="flex flex-col">
     if (!whois.NxDomain) {
-        @WhoisDetailItem("Registrar", whois.WhoisInfo.Registrar.Name)
-        @WhoisDetailItem("Name Servers", strings.Join(whois.WhoisInfo.Domain.NameServers, ", "))
-        @WhoisDetailItem("Creation Date", whois.WhoisInfo.Domain.CreatedDateInTime.Format("2006-01-02"))
-        @WhoisDetailItem("Expiration Date", whois.WhoisInfo.Domain.ExpirationDateInTime.Format("2006-01-02"))
-        @WhoisDetailItem("Time Until Expiration", durafmt.Parse(whois.WhoisInfo.Domain.ExpirationDateInTime.Sub(time.Now())).LimitFirstN(2).String())
+        if (whois.WhoisInfo.Registrar != nil && whois.WhoisInfo.Registrar.Name != "") {
+            @WhoisDetailItem("Registrar", whois.WhoisInfo.Registrar.Name)
+        }
+        if (whois.WhoisInfo.Domain != nil && len(whois.WhoisInfo.Domain.NameServers) > 0) {
+            @WhoisDetailItem("Name Servers", strings.Join(whois.WhoisInfo.Domain.NameServers, ", "))
+        }
+        if (whois.WhoisInfo.Domain != nil && whois.WhoisInfo.Domain.CreatedDateInTime != nil) {
+            @WhoisDetailItem("Creation Date", whois.WhoisInfo.Domain.CreatedDateInTime.Format("2006-01-02"))
+        }
+        if (whois.WhoisInfo.Domain != nil && whois.WhoisInfo.Domain.ExpirationDateInTime != nil) {
+            @WhoisDetailItem("Expiration Date", whois.WhoisInfo.Domain.ExpirationDateInTime.Format("2006-01-02"))
+            @WhoisDetailItem("Time Until Expiration", durafmt.Parse(whois.WhoisInfo.Domain.ExpirationDateInTime.Sub(time.Now())).LimitFirstN(2).String())
+        }
         @WhoisDetailItem("WHOIS Query Date", whois.LastUpdated.Format("2006-01-02"))
     } else {
         <div class="flex flex-col">
@@ -52,6 +60,78 @@ templ WhoisDetail(whois configuration.WhoisCache) {
             <div class="ps-2 text-md">NXDOMAIN</div>
         </div>
     }
+    </div>
+}
+
+templ WhoisExtendedInfo(whois configuration.WhoisCache) {
+    <div class="mt-3 pt-3 border-t border-base-300">
+        <div class="collapse collapse-arrow bg-base-200">
+            <input type="checkbox" />
+            <div class="collapse-title text-xs font-medium">
+                📋 Extended Details
+            </div>
+            <div class="collapse-content">
+                <div class="space-y-2 pt-2">
+                    if (whois.WhoisInfo.Domain != nil) {
+                        if (whois.WhoisInfo.Domain.ID != "") {
+                            @WhoisDetailItem("Domain ID", whois.WhoisInfo.Domain.ID)
+                        }
+                        if (whois.WhoisInfo.Domain.Extension != "") {
+                            @WhoisDetailItem("Extension", whois.WhoisInfo.Domain.Extension)
+                        }
+                        if (len(whois.WhoisInfo.Domain.Status) > 0) {
+                            @WhoisDetailItem("Status", strings.Join(whois.WhoisInfo.Domain.Status, ", "))
+                        }
+                        if (whois.WhoisInfo.Domain.UpdatedDateInTime != nil) {
+                            @WhoisDetailItem("Last Updated", whois.WhoisInfo.Domain.UpdatedDateInTime.Format("2006-01-02"))
+                        }
+                        if (whois.WhoisInfo.Domain.DNSSec) {
+                            @WhoisDetailItem("DNSSEC", "Enabled")
+                        }
+                    }
+                    if (whois.WhoisInfo.Registrar != nil) {
+                        if (whois.WhoisInfo.Registrar.ID != "") {
+                            @WhoisDetailItem("Registrar ID", whois.WhoisInfo.Registrar.ID)
+                        }
+                        if (whois.WhoisInfo.Registrar.Organization != "" && whois.WhoisInfo.Registrar.Organization != whois.WhoisInfo.Registrar.Name) {
+                            @WhoisDetailItem("Registrar Org", whois.WhoisInfo.Registrar.Organization)
+                        }
+                        if (whois.WhoisInfo.Registrar.Email != "") {
+                            @WhoisDetailItem("Registrar Email", whois.WhoisInfo.Registrar.Email)
+                        }
+                        if (whois.WhoisInfo.Registrar.Phone != "") {
+                            @WhoisDetailItem("Registrar Phone", whois.WhoisInfo.Registrar.Phone)
+                        }
+                        if (whois.WhoisInfo.Registrar.ReferralURL != "") {
+                            @WhoisDetailItem("Registrar URL", whois.WhoisInfo.Registrar.ReferralURL)
+                        }
+                    }
+                    if (whois.WhoisInfo.Registrant != nil) {
+                        <div class="divider my-1"></div>
+                        <h4 class="text-xs font-semibold mb-1">Registrant</h4>
+                        if (whois.WhoisInfo.Registrant.Name != "") {
+                            @WhoisDetailItem("Name", whois.WhoisInfo.Registrant.Name)
+                        }
+                        if (whois.WhoisInfo.Registrant.Organization != "") {
+                            @WhoisDetailItem("Organization", whois.WhoisInfo.Registrant.Organization)
+                        }
+                        if (whois.WhoisInfo.Registrant.Email != "") {
+                            @WhoisDetailItem("Email", whois.WhoisInfo.Registrant.Email)
+                        }
+                    }
+                    if (whois.WhoisInfo.Technical != nil) {
+                        <div class="divider my-1"></div>
+                        <h4 class="text-xs font-semibold mb-1">Technical Contact</h4>
+                        if (whois.WhoisInfo.Technical.Name != "") {
+                            @WhoisDetailItem("Name", whois.WhoisInfo.Technical.Name)
+                        }
+                        if (whois.WhoisInfo.Technical.Email != "") {
+                            @WhoisDetailItem("Email", whois.WhoisInfo.Technical.Email)
+                        }
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 }
 
