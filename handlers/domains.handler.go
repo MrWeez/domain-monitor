@@ -186,7 +186,7 @@ func (h *DomainHandler) GetEditDomain(c echo.Context) error {
 // Update a domain and return an updated tbody
 func (h *DomainHandler) PostUpdateDomain(c echo.Context) error {
 	var domain configuration.Domain
-	if err := (&echo.DefaultBinder{}).BindBody(c, &domain); err != nil {
+	if err := c.Bind(&domain); err != nil {
 		return err
 	}
 
@@ -197,7 +197,13 @@ func (h *DomainHandler) PostUpdateDomain(c echo.Context) error {
 		return err
 	}
 
-	return h.GetListDomainRow(domain, c)
+	// Get the updated domain from storage to ensure we have the latest data
+	updatedDomain, err := h.DomainService.GetDomain(domain.FQDN)
+	if err != nil {
+		return err
+	}
+
+	return h.GetListDomainRow(updatedDomain, c)
 }
 
 // Get the HTML for a single domain row

@@ -18,6 +18,10 @@ type Domain struct {
 	Alerts bool `yaml:"alerts" json:"alerts" form:"alerts" query:"alerts"`
 	// Monitoring enabled for this domain
 	Enabled bool `yaml:"enabled" json:"enabled" form:"enabled" query:"enabled"`
+	// Renewal price (optional)
+	RenewalPrice float64 `yaml:"renewalPrice,omitempty" json:"renewalPrice,omitempty" form:"renewalPrice" query:"renewalPrice"`
+	// Currency symbol (optional, e.g., "$", "€", "₽")
+	Currency string `yaml:"currency,omitempty" json:"currency,omitempty" form:"currency" query:"currency"`
 }
 
 // The file content of the domain configuration file
@@ -119,6 +123,32 @@ func (dc *DomainConfiguration) RemoveDomain(domain Domain) {
 // UpdateDomain updates a domain in the configuration
 //
 // The domain is identified by its FQDN. If the domain doesn't exist, it is added to the list.
+// For optional fields (renewalPrice, currency), existing values are preserved if only one field is provided.
 func (dc *DomainConfiguration) UpdateDomain(domain Domain) {
+	// Find existing domain to preserve optional fields
+	for i, d := range dc.DomainFile.Domains {
+		if d.FQDN == domain.FQDN {
+			// Merge: preserve existing renewalPrice and currency if new values are incomplete
+			// If both are empty/zero, clear them (user wants to remove price)
+			// If only one is provided, use existing value for the other
+			if domain.RenewalPrice == 0 && domain.Currency == "" {
+				// Both empty - clear price (user wants to remove it)
+				// Keep as is
+			} else if domain.RenewalPrice == 0 {
+				// Price is missing but currency is set - keep existing price if currency matches
+				domain.RenewalPrice = d.RenewalPrice
+			} else if domain.Currency == "" {
+				// Currency is missing but price is set - keep existing currency
+				domain.Currency = d.Currency
+			}
+			// If both are provided, use them as-is
+			
+			dc.DomainFile.Domains[i] = domain
+			log.Println("🔄 Updated domain " + domain.FQDN)
+			dc.Flush()
+			return
+		}
+	}
+	// Domain doesn't exist, add it
 	dc.AddDomain(domain)
 }
