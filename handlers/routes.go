@@ -17,13 +17,14 @@ func SetupRoutes(app *echo.Echo, includeConfiguration bool) {
 	}
 }
 
-func SetupDomainRoutes(app *echo.Echo, domains configuration.DomainConfiguration, configurationEnabled bool) {
+func SetupDomainRoutes(app *echo.Echo, domains configuration.DomainConfiguration, whoisCache configuration.WhoisCacheStorage, configurationEnabled bool) {
 	domainHtmx := app.Group("/domain")
 	domainApi := app.Group("/api/domain")
 
 	ds := service.NewDomainService(domains)
+	ws := service.NewWhoisService(whoisCache)
 	dhapi := NewApiDomainHandler(ds)
-	dh := NewDomainHandler(ds)
+	dh := NewDomainHandler(ds, ws)
 
 	domainApi.GET("", dhapi.HandleDomainList)
 	domainApi.GET("/:fqdn", dhapi.HandleDomainShow)

@@ -76,7 +76,7 @@ func main() {
 	// set up our routes
 	handlers.SetupRoutes(app, config.Config.App.ShowConfiguration)
 	handlers.SetupConfigRoutes(app, config)
-	handlers.SetupDomainRoutes(app, domains, config.Config.App.ShowConfiguration)
+	handlers.SetupDomainRoutes(app, domains, whoisCache, config.Config.App.ShowConfiguration)
 
 	// Setup mailer routes (always register, handler will check if mailer is configured)
 	handlers.SetupMailerRoutes(app, _mailer, config.Config.Alerts.Admin)

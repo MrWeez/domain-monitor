@@ -25,11 +25,27 @@ templ DomainCard(domain configuration.Domain) {
     </div>
 }
 
-templ DomainCards(domains []configuration.Domain) {
-    <div class="grid lg:grid-cols-4 md:grid-cols-3 sm:grid-cols-2 gap-4 p-2">
-        for _,domain := range domains {
-            @DomainCard(domain)
-        }
+templ DomainCards(domains []configuration.Domain, sortBy string) {
+    <div class="flex flex-col gap-2 p-2">
+        <div class="flex items-center gap-2 justify-end">
+            <label class="text-xs text-secondary">Sort by:</label>
+            <select class="select select-bordered select-sm" 
+                    hx-get="/domain/cards" 
+                    hx-target="closest .flex.flex-col" 
+                    hx-swap="outerHTML" 
+                    name="sort" 
+                    hx-trigger="change" 
+                    hx-include="this">
+                <option value="expiration_date" selected?={sortBy == "expiration_date"}>Expiration Date (soonest first)</option>
+                <option value="creation_date" selected?={sortBy == "creation_date"}>Creation Date (newest first)</option>
+                <option value="name" selected?={sortBy == "name"}>Name (A-Z)</option>
+            </select>
+        </div>
+        <div id="domain-cards-container" class="grid lg:grid-cols-4 md:grid-cols-3 sm:grid-cols-2 gap-4">
+            for _,domain := range domains {
+                @DomainCard(domain)
+            }
+        </div>
     </div>
 }
 
@@ -47,7 +63,7 @@ templ WhoisDetail(whois configuration.WhoisCache) {
             @WhoisDetailItem("Name Servers", strings.Join(whois.WhoisInfo.Domain.NameServers, ", "))
         }
         if (whois.WhoisInfo.Domain != nil && whois.WhoisInfo.Domain.CreatedDateInTime != nil) {
-            @WhoisDetailItem("Creation Date", whois.WhoisInfo.Domain.CreatedDateInTime.Format("2006-01-02"))
+            @CreationDateWithAge(whois.WhoisInfo.Domain.CreatedDateInTime)
         }
         if (whois.WhoisInfo.Domain != nil && whois.WhoisInfo.Domain.ExpirationDateInTime != nil) {
             @WhoisDetailItem("Expiration Date", whois.WhoisInfo.Domain.ExpirationDateInTime.Format("2006-01-02"))
@@ -140,6 +156,41 @@ templ WhoisDetailItem(label string, value string) {
         <div class="text-xs text-secondary">{ label }</div>
         <div class="ps-2 text-md">{ value }</div>
     </div>
+}
+
+templ CreationDateWithAge(createdDate *time.Time) {
+    @CreationDateWithAgeHelper(createdDate.Format("2006-01-02"), fmtAge(time.Since(*createdDate)))
+}
+
+templ CreationDateWithAgeHelper(dateStr string, ageStr string) {
+    @WhoisDetailItem("Creation Date", dateStr+" ("+ageStr+")")
+}
+
+// fmtAge formats a duration as human-readable relative time (e.g., "3 years ago", "2 months ago")
+func fmtAge(age time.Duration) string {
+    years := int(age.Hours() / 24 / 365)
+    months := int(age.Hours() / 24 / 30)
+    days := int(age.Hours() / 24)
+    
+    if years > 0 {
+        if years == 1 {
+            return "1 year ago"
+        }
+        return fmt.Sprintf("%d years ago", years)
+    }
+    if months > 0 {
+        if months == 1 {
+            return "1 month ago"
+        }
+        return fmt.Sprintf("%d months ago", months)
+    }
+    if days > 0 {
+        if days == 1 {
+            return "1 day ago"
+        }
+        return fmt.Sprintf("%d days ago", days)
+    }
+    return "recently"
 }
 
 templ DomainListingTbody(domains []configuration.Domain) {

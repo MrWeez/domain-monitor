@@ -3,20 +3,24 @@ package handlers
 import (
 	"errors"
 	"log"
+	"sort"
 	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/nwesterhausen/domain-monitor/configuration"
+	"github.com/nwesterhausen/domain-monitor/service"
 	"github.com/nwesterhausen/domain-monitor/views/domains"
 )
 
 type DomainHandler struct {
 	DomainService ApiDomainService
+	WhoisService  *service.ServicesWhois
 }
 
-func NewDomainHandler(ds ApiDomainService) *DomainHandler {
+func NewDomainHandler(ds ApiDomainService, ws *service.ServicesWhois) *DomainHandler {
 	return &DomainHandler{
 		DomainService: ds,
+		WhoisService:  ws,
 	}
 }
 
@@ -41,8 +45,81 @@ func (h *DomainHandler) GetCards(c echo.Context) error {
 	if err != nil {
 		return err
 	}
-	cards := domains.DomainCards(domainList)
+
+	// Get sort parameter from query string (default: expiration_date)
+	sortBy := c.QueryParam("sort")
+	if sortBy == "" {
+		sortBy = "expiration_date"
+	}
+
+	// Sort domains based on WHOIS data if available
+	if h.WhoisService != nil && sortBy != "name" {
+		domainList = h.sortDomainsWithWhois(domainList, sortBy)
+	} else if sortBy == "name" {
+		sort.Slice(domainList, func(i, j int) bool {
+			return domainList[i].Name < domainList[j].Name
+		})
+	}
+
+	cards := domains.DomainCards(domainList, sortBy)
 	return View(c, cards)
+}
+
+// sortDomainsWithWhois sorts domains by expiration date, creation date, or name using WHOIS data
+func (h *DomainHandler) sortDomainsWithWhois(domainList []configuration.Domain, sortBy string) []configuration.Domain {
+	type domainWithWhois struct {
+		domain configuration.Domain
+		whois  *configuration.WhoisCache
+	}
+
+	domainsWithData := make([]domainWithWhois, 0, len(domainList))
+	for _, domain := range domainList {
+		whois, err := h.WhoisService.GetWhois(domain.FQDN)
+		if err != nil {
+			// If WHOIS data not available, still include domain but with nil whois
+			domainsWithData = append(domainsWithData, domainWithWhois{domain: domain, whois: nil})
+			continue
+		}
+		domainsWithData = append(domainsWithData, domainWithWhois{domain: domain, whois: &whois})
+	}
+
+	// Sort based on sortBy parameter
+	sort.Slice(domainsWithData, func(i, j int) bool {
+		wi, wj := domainsWithData[i].whois, domainsWithData[j].whois
+
+		switch sortBy {
+		case "expiration_date":
+			// Sort by expiration date (ascending - soonest first)
+			if wi == nil || wi.WhoisInfo.Domain == nil || wi.WhoisInfo.Domain.ExpirationDateInTime == nil {
+				return false // Put domains without expiration date at the end
+			}
+			if wj == nil || wj.WhoisInfo.Domain == nil || wj.WhoisInfo.Domain.ExpirationDateInTime == nil {
+				return true
+			}
+			return wi.WhoisInfo.Domain.ExpirationDateInTime.Before(*wj.WhoisInfo.Domain.ExpirationDateInTime)
+		case "creation_date":
+			// Sort by creation date (descending - newest first)
+			if wi == nil || wi.WhoisInfo.Domain == nil || wi.WhoisInfo.Domain.CreatedDateInTime == nil {
+				return false
+			}
+			if wj == nil || wj.WhoisInfo.Domain == nil || wj.WhoisInfo.Domain.CreatedDateInTime == nil {
+				return true
+			}
+			return wi.WhoisInfo.Domain.CreatedDateInTime.After(*wj.WhoisInfo.Domain.CreatedDateInTime)
+		case "name":
+			return domainsWithData[i].domain.Name < domainsWithData[j].domain.Name
+		default:
+			return false
+		}
+	})
+
+	// Extract sorted domains
+	sortedDomains := make([]configuration.Domain, len(domainsWithData))
+	for i, dw := range domainsWithData {
+		sortedDomains[i] = dw.domain
+	}
+
+	return sortedDomains
 }
 
 // Get HTML for domain list as tbody
