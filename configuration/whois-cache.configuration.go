@@ -1,6 +1,7 @@
 package configuration
 
 import (
+	"bytes"
 	"log"
 	"os"
 	"time"
@@ -183,11 +184,18 @@ func (w *WhoisCache) Refresh() {
 // Flush the whois cache to its storage
 func (w WhoisCacheStorage) Flush() {
 	// Write the FileContents to the FilePath
-	yaml, yamlerr := yaml.Marshal(w.FileContents)
-	if yamlerr != nil {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(4)
+	err := encoder.Encode(w.FileContents)
+	if err != nil {
 		log.Println("Error while marshalling WHOIS cache")
-		log.Fatalf("error: %v", yamlerr)
+		log.Fatalf("error: %v", err)
 	}
+	encoder.Close()
+	
+	// Process the YAML to ensure all string values are quoted
+	data := quoteYAMLStrings(buf.Bytes())
 
 	file, err := os.Create(w.Filepath)
 	if err != nil {
@@ -197,7 +205,7 @@ func (w WhoisCacheStorage) Flush() {
 
 	defer file.Close()
 
-	_, err = file.Write(yaml)
+	_, err = file.Write(data)
 	if err != nil {
 		log.Println("Error while writing WHOIS cache file")
 		log.Fatalf("error: %v", err)

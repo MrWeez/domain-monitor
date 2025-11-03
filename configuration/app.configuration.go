@@ -1,12 +1,74 @@
 package configuration
 
 import (
-	"io"
+	"bytes"
 	"log"
 	"os"
+	"regexp"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
+
+// quoteYAMLStrings ensures all string values in YAML are quoted for security
+func quoteYAMLStrings(data []byte) []byte {
+	lines := strings.Split(string(data), "\n")
+	var result []string
+	
+	// Regex to match key: value patterns where value is an unquoted string
+	// Matches: "key: value" where value doesn't start with quotes and isn't a boolean/number/list
+	valuePattern := regexp.MustCompile(`^(\s*)([^:]+):\s*(.+?)\s*$`)
+	boolOrNumPattern := regexp.MustCompile(`^(true|false|\d+|null)$`)
+	
+	for _, line := range lines {
+		// Skip empty lines and comments
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
+			result = append(result, line)
+			continue
+		}
+		
+		// Skip list items (lines starting with -)
+		if strings.HasPrefix(trimmed, "- ") {
+			result = append(result, line)
+			continue
+		}
+		
+		// Match key: value pattern
+		if matches := valuePattern.FindStringSubmatch(line); matches != nil {
+			indent := matches[1]
+			key := strings.TrimSpace(matches[2])
+			value := strings.TrimSpace(matches[3])
+			
+			// Skip if value is already quoted
+			if strings.HasPrefix(value, `"`) || strings.HasPrefix(value, `'`) {
+				result = append(result, line)
+				continue
+			}
+			
+			// Skip if value is a boolean, number, or null
+			if boolOrNumPattern.MatchString(value) {
+				result = append(result, line)
+				continue
+			}
+			
+			// Skip if value starts with [ or { (list or map)
+			if strings.HasPrefix(value, "[") || strings.HasPrefix(value, "{") {
+				result = append(result, line)
+				continue
+			}
+			
+			// Quote the value and escape internal quotes
+			escapedValue := strings.ReplaceAll(value, `"`, `\"`)
+			escapedValue = strings.ReplaceAll(escapedValue, "\n", "\\n")
+			result = append(result, indent+key+`: "`+escapedValue+`"`)
+		} else {
+			result = append(result, line)
+		}
+	}
+	
+	return []byte(strings.Join(result, "\n"))
+}
 
 type AppConfiguration struct {
 	// The port the application listens on
@@ -115,11 +177,19 @@ func DefaultConfiguration(filepath string) Configuration {
 
 // Write the app configuration to the config file
 func (c Configuration) Flush() {
-	data, dataErr := yaml.Marshal(c.Config)
-	if dataErr != nil {
+	// Create encoder that always quotes string values for security
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(4)
+	err := encoder.Encode(c.Config)
+	if err != nil {
 		log.Println("Error while marshalling configuration")
-		log.Fatalf("error: %v", dataErr)
+		log.Fatalf("error: %v", err)
 	}
+	encoder.Close()
+	
+	// Process the YAML to ensure all string values are quoted
+	data := quoteYAMLStrings(buf.Bytes())
 
 	file, err := os.Create(c.Filepath)
 	if err != nil {
@@ -129,7 +199,7 @@ func (c Configuration) Flush() {
 
 	defer file.Close()
 
-	_, err = io.WriteString(file, string(data))
+	_, err = file.Write(data)
 	if err != nil {
 		log.Println("Error while writing configuration file")
 		log.Fatalf("error: %v", err)

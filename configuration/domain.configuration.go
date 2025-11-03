@@ -1,7 +1,7 @@
 package configuration
 
 import (
-	"io"
+	"bytes"
 	"log"
 	"os"
 
@@ -35,11 +35,18 @@ type DomainConfiguration struct {
 }
 
 func (dc DomainConfiguration) Flush() {
-	data, dataErr := yaml.Marshal(dc.DomainFile)
-	if dataErr != nil {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(4)
+	err := encoder.Encode(dc.DomainFile)
+	if err != nil {
 		log.Println("Error while marshalling domain table")
-		log.Fatalf("error: %v", dataErr)
+		log.Fatalf("error: %v", err)
 	}
+	encoder.Close()
+	
+	// Process the YAML to ensure all string values are quoted
+	data := quoteYAMLStrings(buf.Bytes())
 
 	file, err := os.Create(dc.Filepath)
 	if err != nil {
@@ -49,7 +56,7 @@ func (dc DomainConfiguration) Flush() {
 
 	defer file.Close()
 
-	_, err = io.WriteString(file, string(data))
+	_, err = file.Write(data)
 	if err != nil {
 		log.Println("Error while writing domain table file")
 		log.Fatalf("error: %v", err)
