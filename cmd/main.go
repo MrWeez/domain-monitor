@@ -36,16 +36,20 @@ func main() {
 	// provide some sanity log messages, to confirm the alert and mailer settings
 	if config.Config.Alerts.SendAlerts {
 		if !config.Config.SMTP.Enabled {
-			log.Println("❌ Email notifications are disabled")
+			log.Println("❌ Email notifications are disabled (SMTP.Enabled = false)")
 		} else if len(config.Config.SMTP.Host) == 0 || config.Config.SMTP.Host == "smtp.example.com" {
-			log.Println("❌ SMTP is not configured")
+			log.Println("❌ SMTP is not configured (host is empty or default)")
 			config.Config.SMTP.Enabled = false
 		} else {
 			_mailer = service.NewMailerService(config.Config.SMTP)
-			log.Printf("📧 Alerts configured to be sent to %s", config.Config.Alerts.Admin)
+			if _mailer == nil {
+				log.Println("❌ Failed to initialize SMTP mailer service. Check SMTP configuration.")
+			} else {
+				log.Printf("✅ SMTP mailer service initialized. Alerts will be sent to %s", config.Config.Alerts.Admin)
+			}
 		}
 	} else {
-		log.Println("📵 Alerts are disabled")
+		log.Println("📵 Alerts are disabled (Alerts.SendAlerts = false)")
 	}
 	// for sanity, log the cache refresh interval parsed from the configuration
 	log.Printf("📆 WHOIS cache refresh interval set to %s", configuration.WhoisRefreshInterval)
@@ -74,10 +78,8 @@ func main() {
 	handlers.SetupConfigRoutes(app, config)
 	handlers.SetupDomainRoutes(app, domains, config.Config.App.ShowConfiguration)
 
-	// if the mailer was configured, add the routes
-	if _mailer != nil {
-		handlers.SetupMailerRoutes(app, _mailer, config.Config.Alerts.Admin)
-	}
+	// Setup mailer routes (always register, handler will check if mailer is configured)
+	handlers.SetupMailerRoutes(app, _mailer, config.Config.Alerts.Admin)
 
 	// Setup whois routes
 	_whoisService := service.NewWhoisService(whoisCache)
