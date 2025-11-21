@@ -58,6 +58,12 @@ func quoteYAMLStrings(data []byte) []byte {
 				continue
 			}
 			
+			// Skip renewalPrice field (should remain as numeric/decimal)
+			if key == "renewalPrice" {
+				result = append(result, line)
+				continue
+			}
+			
 			// Quote the value and escape internal quotes
 			escapedValue := strings.ReplaceAll(value, `"`, `\"`)
 			escapedValue = strings.ReplaceAll(escapedValue, "\n", "\\n")
